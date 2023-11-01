@@ -1,0 +1,24 @@
+From 116e665ddb7b38bb8f7065ddb08192bd3551897d Mon Sep 17 00:00:00 2001
+From: Tomas Bzatek <tbzatek@redhat.com>
+Date: Tue, 26 Feb 2019 16:45:59 +0100
+Subject: [PATCH] sg_turs: fix help invocation in the old mode
+
+In the old mode the usage was printed out twice when called
+by `sg_turs -O -?`.
+---
+ src/sg_turs.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/src/sg_turs.c b/src/sg_turs.c
+index 8c6e3792..a318d22c 100644
+--- a/src/sg_turs.c
++++ b/src/sg_turs.c
+@@ -252,7 +252,7 @@ old_parse_cmd_line(struct opts_t * op, int argc, char * argv[])
+                     op->version_given = true;
+                     break;
+                 case '?':
+-                    usage_old();
++                    ++op->do_help;
+                     return 0;
+                 default:
+                     jmp_out = true;
