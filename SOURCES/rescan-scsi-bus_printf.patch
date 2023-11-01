@@ -1,0 +1,45 @@
+From ae6618a9573e7519f6e5c3ea02b7be865dd456d7 Mon Sep 17 00:00:00 2001
+From: Tomas Bzatek <tbzatek@redhat.com>
+Date: Mon, 17 Jan 2022 13:54:04 +0100
+Subject: [PATCH] rescan-scsi-bus: Do not use printf for summary
+
+A string containing escape sequences can only be supplied
+to `printf` as the first argument. As there's no format involved
+in the summary string, just use `echo -e` to process the escaped
+sequences.
+
+Fixes the following phenomenon:
+
+1 new or changed device(s) found.
+\t[1:0:0:0]\n0 remapped or resized device(s) found.
+0 device(s) removed.
+---
+ scripts/rescan-scsi-bus.sh | 6 +++---
+ 1 file changed, 3 insertions(+), 3 deletions(-)
+
+diff --git a/scripts/rescan-scsi-bus.sh b/scripts/rescan-scsi-bus.sh
+index 23eff3b..5d5d63b 100755
+--- a/scripts/rescan-scsi-bus.sh
++++ b/scripts/rescan-scsi-bus.sh
+@@ -1384,15 +1384,15 @@ fi
+ 
+ echo "$found new or changed device(s) found.          "
+ if [ ! -z "$FOUNDDEVS" ] ; then
+-  printf "%s" "$FOUNDDEVS"
++  echo -e "$FOUNDDEVS"
+ fi
+ echo "$updated remapped or resized device(s) found."
+ if [ ! -z "$CHGDEVS" ] ; then
+-  printf "%s" "$CHGDEVS"
++  echo -e "$CHGDEVS"
+ fi
+ echo "$rmvd device(s) removed.                 "
+ if [ ! -z "$RMVDDEVS" ] ; then
+-  printf "%s" "$RMVDDEVS"
++  echo -e "$RMVDDEVS"
+ fi
+ 
+ # Local Variables:
+-- 
+2.34.1
+
