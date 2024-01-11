@@ -1,0 +1,28 @@
+From c683e6e2bc62b43c140934b919323d107b0a48cb Mon Sep 17 00:00:00 2001
+From: Tomas Bzatek <tbzatek@redhat.com>
+Date: Tue, 28 May 2019 16:06:06 +0200
+Subject: [PATCH] sg_raw: do not print error about device not specified on
+ version request
+
+---
+ src/sg_raw.c | 7 +++++++
+ 1 file changed, 7 insertions(+)
+
+diff --git a/src/sg_raw.c b/src/sg_raw.c
+index 33a85f7c..453ff42a 100644
+--- a/src/sg_raw.c
++++ b/src/sg_raw.c
+@@ -440,6 +440,13 @@ parse_cmd_line(struct opts_t * op, int argc, char *argv[])
+         }
+     }
+ 
++    if (op->version_given
++#ifdef DEBUG
++       && ! op->verbose_given
++#endif
++       )
++        return 0;
++
+     if (optind >= argc) {
+         pr2serr("No device specified\n\n");
+         return SG_LIB_SYNTAX_ERROR;

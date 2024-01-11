@@ -1,0 +1,25 @@
+From 37b8af8278bba0b116b579950218f2e610a2ab2b Mon Sep 17 00:00:00 2001
+From: jtpittman195 <jpittman@redhat.com>
+Date: Fri, 4 Oct 2019 10:58:24 -0400
+Subject: [PATCH] fc_wwpn_id: add condition to FC_TARGET_LUN return
+
+If there is no relevant fc_remote_port or fc_host found, there is no need to return the target_lun number.  Returning with no condition causes a FC_TARGET_LUN value to be present in the udev database for devices that are not fibre attached.  Add condition to check.
+---
+ scripts/fc_wwpn_id | 4 +++-
+ 1 file changed, 3 insertions(+), 1 deletion(-)
+
+diff --git a/scripts/fc_wwpn_id b/scripts/fc_wwpn_id
+index c8d0189..b05c5e8 100644
+--- a/scripts/fc_wwpn_id
++++ b/scripts/fc_wwpn_id
+@@ -38,7 +38,9 @@ while [ -n "$d" ] ; do
+     esac
+ done
+ 
+-echo "FC_TARGET_LUN=$target_lun"
++if [ -n "$rport_wwpn" ] || [ -n "$host_wwpn" ] ; then
++    echo "FC_TARGET_LUN=$target_lun"
++fi
+ 
+ if [ -n "$rport_wwpn" ] ; then
+     echo "FC_TARGET_WWPN=$rport_wwpn"

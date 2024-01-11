@@ -1,0 +1,1427 @@
+From 7a39d7758c9c799bc6341a8a339a91692ec8a9dd Mon Sep 17 00:00:00 2001
+From: Gris Ge <fge@redhat.com>
+Date: Tue, 25 Sep 2018 18:52:26 +0800
+Subject: [PATCH 01/30] Fix overrunning array.
+
+Issue:
+ * `jrp` might pointing outside of join_arr after the for loop.
+ * Out of index: `op->cdb`.
+
+Fix:
+ * Check index number before dereferencing `jpr` pointer.
+ * Check index number before access `op->cdb` array.
+
+Signed-off-by: Gris Ge <fge@redhat.com>
+---
+ src/sg_raw.c | 2 +-
+ src/sg_ses.c | 2 +-
+ 2 files changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/src/sg_raw.c b/src/sg_raw.c
+index 92c2287..90c3d9c 100644
+--- a/src/sg_raw.c
++++ b/src/sg_raw.c
+@@ -454,7 +454,7 @@ parse_cmd_line(struct opts_t * op, int argc, char *argv[])
+             return SG_LIB_SYNTAX_ERROR;
+         }
+ 
+-        if (op->cdb_length > MAX_SCSI_CDBSZ) {
++        if (op->cdb_length >= MAX_SCSI_CDBSZ) {
+             pr2serr("CDB too long (max. %d bytes)\n", MAX_SCSI_CDBSZ);
+             return SG_LIB_SYNTAX_ERROR;
+         }
+diff --git a/src/sg_ses.c b/src/sg_ses.c
+index abb1fea..29b66b3 100644
+--- a/src/sg_ses.c
++++ b/src/sg_ses.c
+@@ -5310,7 +5310,7 @@ ses_cgs(struct sg_pt_base * ptvp, const struct tuple_acronym_val * tavp,
+         if (op->ind_indiv_last <= op->ind_indiv)
+             break;
+     }   /* end of loop over join array */
+-    if ((NULL == jrp->enc_statp) || (k >= MX_JOIN_ROWS)) {
++    if ((k >= MX_JOIN_ROWS) || (NULL == jrp->enc_statp)) {
+         if (op->desc_name)
+             pr2serr("descriptor name: %s not found (check the 'ed' page "
+                     "[0x7])\n", op->desc_name);
+-- 
+1.8.3.1
+
+
+From ad7d26c94ad555a647528c31eb11b78fc0ac4474 Mon Sep 17 00:00:00 2001
+From: Gris Ge <fge@redhat.com>
+Date: Tue, 25 Sep 2018 18:59:01 +0800
+Subject: [PATCH 02/30] sg_persist: Workaround for false warning of covscan.
+
+The covscan think we might access out of index on `tid_arr` but
+actually we did the index check before.
+
+Signed-off-by: Gris Ge <fge@redhat.com>
+---
+ src/sg_persist.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/src/sg_persist.c b/src/sg_persist.c
+index f582d32..b565a5a 100644
+--- a/src/sg_persist.c
++++ b/src/sg_persist.c
+@@ -824,7 +824,7 @@ decode_file_tids(const char * fnp, struct opts_t * op)
+                     pr2serr("%s: array length exceeded\n", __func__);
+                     goto bad;
+                 }
+-                tid_arr[off + k] = h;
++                op->transportid_arr[off + k] = h;
+                 lcp = strpbrk(lcp, " ,\t");
+                 if (NULL == lcp)
+                     break;
+-- 
+1.8.3.1
+
+
+From 24e54cf4c04fa7aa3bdf8e7315ce6240ab306c5f Mon Sep 17 00:00:00 2001
+From: Gris Ge <fge@redhat.com>
+Date: Tue, 25 Sep 2018 19:12:34 +0800
+Subject: [PATCH 03/30] sg_opcodes: Fix overrun of array.
+
+Overrunning array `b` as 4 + m might bigger than the size of array `b`.
+
+Signed-off-by: Gris Ge <fge@redhat.com>
+---
+ src/sg_opcodes.c | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/src/sg_opcodes.c b/src/sg_opcodes.c
+index 21897c4..a8cf762 100644
+--- a/src/sg_opcodes.c
++++ b/src/sg_opcodes.c
+@@ -799,7 +799,8 @@ list_all_codes(uint8_t * rsoc_buff, int rsoc_len, struct opts_t * op,
+                         printf("             usage: ");
+                     else
+                         printf("        cdb usage: ");
+-                    for (m = 0; m < cdb_sz; ++m)
++                    for (m = 0; (m < cdb_sz) && ((size_t) (4 + m) < sizeof(b));
++                         ++m)
+                         printf("%.2x ", b[4 + m]);
+                     printf("\n");
+                 }
+-- 
+1.8.3.1
+
+
+From ca241cf82c746391edb3b460550310da40202fe4 Mon Sep 17 00:00:00 2001
+From: Gris Ge <fge@redhat.com>
+Date: Wed, 26 Sep 2018 20:34:42 +0800
+Subject: [PATCH 04/30] sg_lib: Fix overruning of array
+ `sg_lib_scsi_status_sense_arr`
+
+Check index before dereferencing `mp`.
+
+Signed-off-by: Gris Ge <fge@redhat.com>
+---
+ include/sg_lib_data.h | 2 ++
+ lib/sg_lib.c          | 3 +++
+ lib/sg_lib_data.c     | 6 ++++++
+ 3 files changed, 11 insertions(+)
+
+diff --git a/include/sg_lib_data.h b/include/sg_lib_data.h
+index a870043..9739453 100644
+--- a/include/sg_lib_data.h
++++ b/include/sg_lib_data.h
+@@ -122,6 +122,8 @@ extern struct sg_lib_simple_value_name_t sg_lib_nvme_nvm_cmd_arr[];
+ extern struct sg_lib_value_name_t sg_lib_nvme_cmd_status_arr[];
+ extern struct sg_lib_4tuple_u8 sg_lib_scsi_status_sense_arr[];
+ 
++size_t sg_lib_scsi_status_sense_arr_len(void);
++
+ extern struct sg_value_2names_t sg_exit_str_arr[];
+ 
+ #ifdef __cplusplus
+diff --git a/lib/sg_lib.c b/lib/sg_lib.c
+index c2c5891..c281cce 100644
+--- a/lib/sg_lib.c
++++ b/lib/sg_lib.c
+@@ -2585,6 +2585,9 @@ sg_nvme_status2scsi(uint16_t sct_sc, uint8_t * status_p, uint8_t * sk_p,
+         return false;
+     } else if (ind >= k)
+         return false;
++    /* Check whether `ind` is out of index of sg_lib_scsi_status_sense_arr */
++    if (ind >= (int) sg_lib_scsi_status_sense_arr_len())
++        return false;
+     mp = sg_lib_scsi_status_sense_arr + ind;
+     if (status_p)
+         *status_p = mp->t1;
+diff --git a/lib/sg_lib_data.c b/lib/sg_lib_data.c
+index d5ca380..3a898e5 100644
+--- a/lib/sg_lib_data.c
++++ b/lib/sg_lib_data.c
+@@ -1850,3 +1850,9 @@ struct sg_value_2names_t sg_exit_str_arr[] = {
+ };
+ 
+ #endif           /* (SG_SCSI_STRINGS && HAVE_NVME && (! IGNORE_NVME)) */
++
++size_t sg_lib_scsi_status_sense_arr_len(void)
++{
++    return sizeof(sg_lib_scsi_status_sense_arr)/
++        sizeof(struct sg_lib_4tuple_u8) - 1;
++}
+-- 
+1.8.3.1
+
+
+From 36a487285d9e7c9afce9acaefa8fad25017cacd8 Mon Sep 17 00:00:00 2001
+From: Gris Ge <fge@redhat.com>
+Date: Fri, 28 Sep 2018 20:56:26 +0800
+Subject: [PATCH 05/30] sginfo,sg_dd: Fix resource leak.
+
+ * sginfo: Free the memory of `headsp`.
+ * sg_dd: Close infd/outfd before return error.
+
+Signed-off-by: Gris Ge <fge@redhat.com>
+---
+ src/sg_dd.c  | 6 ++++++
+ src/sginfo.c | 1 +
+ 2 files changed, 7 insertions(+)
+
+diff --git a/src/sg_dd.c b/src/sg_dd.c
+index edd8f9c..6bdbcdb 100644
+--- a/src/sg_dd.c
++++ b/src/sg_dd.c
+@@ -1276,6 +1276,7 @@ open_if(const char * inf, int64_t skip, int bpt, struct flags_t * ifp,
+                 perror(ME "SG_SET_RESERVED_SIZE error");
+             res = ioctl(infd, SG_GET_VERSION_NUM, &t);
+             if ((res < 0) || (t < 30000)) {
++                close(infd);
+                 if (FT_BLOCK & *in_typep)
+                     pr2serr(ME "SG_IO unsupported on this block device\n");
+                 else
+@@ -1308,6 +1309,7 @@ open_if(const char * inf, int64_t skip, int bpt, struct flags_t * ifp,
+                     snprintf(ebuff, EBUFF_SZ, ME "couldn't skip to "
+                              "required position on %s", inf);
+                     perror(ebuff);
++                    close(infd);
+                     goto file_err;
+                 }
+                 if (vb)
+@@ -1341,6 +1343,7 @@ open_if(const char * inf, int64_t skip, int bpt, struct flags_t * ifp,
+ file_err:
+     return -SG_LIB_FILE_ERROR;
+ other_err:
++    close(infd);
+     return -SG_LIB_CAT_OTHER;
+ }
+ 
+@@ -1398,6 +1401,7 @@ open_of(const char * outf, int64_t seek, int bpt, struct flags_t * ofp,
+                 perror(ME "SG_SET_RESERVED_SIZE error");
+             res = ioctl(outfd, SG_GET_VERSION_NUM, &t);
+             if ((res < 0) || (t < 30000)) {
++                close(outfd);
+                 pr2serr(ME "sg driver prior to 3.x.y\n");
+                 goto file_err;
+             }
+@@ -1447,6 +1451,7 @@ open_of(const char * outf, int64_t seek, int bpt, struct flags_t * ofp,
+                 snprintf(ebuff, EBUFF_SZ,
+                     ME "couldn't seek to required position on %s", outf);
+                 perror(ebuff);
++                close(outfd);
+                 goto file_err;
+             }
+             if (vb)
+@@ -1469,6 +1474,7 @@ open_of(const char * outf, int64_t seek, int bpt, struct flags_t * ofp,
+ file_err:
+     return -SG_LIB_FILE_ERROR;
+ other_err:
++    close(outfd);
+     return -SG_LIB_CAT_OTHER;
+ }
+ 
+diff --git a/src/sginfo.c b/src/sginfo.c
+index bddc964..1032f05 100644
+--- a/src/sginfo.c
++++ b/src/sginfo.c
+@@ -1825,6 +1825,7 @@ trytenbyte:
+         }
+     }
+     printf("\n");
++    free(headsp);
+     return status;
+ }
+ 
+-- 
+1.8.3.1
+
+
+From 5bd764553056b2182db8ef8d6c1a1ab09b0d5a24 Mon Sep 17 00:00:00 2001
+From: Gris Ge <fge@redhat.com>
+Date: Wed, 26 Sep 2018 21:10:23 +0800
+Subject: [PATCH 06/30] covscan: Calling func without checking return value
+
+* Use the macro `_ignore_return()` defined in `misc.h` to ignore the
+  return value of functions.
+
+Signed-off-by: Gris Ge <fge@redhat.com>
+---
+ src/misc.h          | 34 ++++++++++++++++++++++++++++++++++
+ src/sg_get_config.c |  6 ++++--
+ src/sg_logs.c       |  6 ++++--
+ src/sg_persist.c    | 13 +++++++++----
+ src/sg_xcopy.c      | 23 +++++++++++++----------
+ 5 files changed, 64 insertions(+), 18 deletions(-)
+ create mode 100644 src/misc.h
+
+diff --git a/src/misc.h b/src/misc.h
+new file mode 100644
+index 0000000..6289eae
+--- /dev/null
++++ b/src/misc.h
+@@ -0,0 +1,34 @@
++/*
++ * Copyright (c) 2018 Red Hat, Inc.
++ * All rights reserved.
++ *
++ * Redistribution and use in source and binary forms, with or without
++ * modification, are permitted provided that the following conditions
++ * are met:
++ * 1. Redistributions of source code must retain the above copyright
++ *    notice, this list of conditions and the following disclaimer.
++ * 2. Redistributions in binary form must reproduce the above copyright
++ *    notice, this list of conditions and the following disclaimer in the
++ *    documentation and/or other materials provided with the distribution.
++ *
++ * THIS SOFTWARE IS PROVIDED BY THE AUTHOR AND CONTRIBUTORS ``AS IS'' AND
++ * ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
++ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
++ * ARE DISCLAIMED.  IN NO EVENT SHALL THE AUTHOR OR CONTRIBUTORS BE LIABLE
++ * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
++ * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS
++ * OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
++ * HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
++ * LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY
++ * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
++ * SUCH DAMAGE.
++ *
++ * Author:  Gris Ge <fge@redhat.com>
++ */
++#ifndef __SG_UTILS_MISC_H__
++#define __SG_UTILS_MISC_H__
++
++/* Just make coverity scan happy. */
++#define _ignore_return(x) if (x) {}
++
++#endif /* End of __SG_UTILS_MISC_H__ */
+diff --git a/src/sg_get_config.c b/src/sg_get_config.c
+index 28af720..4d2cc9b 100644
+--- a/src/sg_get_config.c
++++ b/src/sg_get_config.c
+@@ -24,6 +24,8 @@
+ #include "sg_unaligned.h"
+ #include "sg_pr2serr.h"
+ 
++#include "misc.h"
++
+ /* A utility program originally written for the Linux OS SCSI subsystem.
+  *
+  * This program outputs information provided by a SCSI "Get Configuration"
+@@ -1091,7 +1093,7 @@ main(int argc, char * argv[])
+         pr2serr(ME "%s doesn't respond to a SCSI INQUIRY\n", device_name);
+         return SG_LIB_CAT_OTHER;
+     }
+-    sg_cmds_close_device(sg_fd);
++    _ignore_return(sg_cmds_close_device(sg_fd));
+ 
+     sg_fd = sg_cmds_open_device(device_name, readonly, verbose);
+     if (sg_fd < 0) {
+@@ -1122,7 +1124,7 @@ main(int argc, char * argv[])
+     } else {
+         char b[80];
+ 
+-        sg_get_category_sense_str(res, sizeof(b), b, verbose);
++        _ignore_return(sg_get_category_sense_str(res, sizeof(b), b, verbose));
+         pr2serr("Get Configuration command: %s\n", b);
+         if (0 == verbose)
+             pr2serr("    try '-v' option for more information\n");
+diff --git a/src/sg_logs.c b/src/sg_logs.c
+index 61443ff..e4f265e 100644
+--- a/src/sg_logs.c
++++ b/src/sg_logs.c
+@@ -34,6 +34,8 @@
+ #include "sg_unaligned.h"
+ #include "sg_pr2serr.h"
+ 
++#include "misc.h"
++
+ static const char * version_str = "1.69 20180911";    /* spc5r19 + sbc4r11 */
+ 
+ #define MX_ALLOC_LEN (0xfffc)
+@@ -6776,7 +6778,7 @@ fetchTemperature(int sg_fd, uint8_t * resp, int max_len, struct opts_t * op)
+             pr2serr("Unable to find temperature in either Temperature or "
+                     "IE log page\n");
+     }
+-    sg_cmds_close_device(sg_fd);
++    _ignore_return(sg_cmds_close_device(sg_fd));
+     return (res >= 0) ? res : SG_LIB_CAT_OTHER;
+ }
+ 
+@@ -7246,7 +7248,7 @@ err_out:
+     if (free_parr)
+         free(free_parr);
+     if (sg_fd >= 0)
+-        sg_cmds_close_device(sg_fd);
++        _ignore_return(sg_cmds_close_device(sg_fd));
+     if (0 == vb) {
+         if (! sg_if_can2stderr("sg_logs failed: ", ret))
+             pr2serr("Some error occurred, try again with '-v' or '-vv' for "
+diff --git a/src/sg_persist.c b/src/sg_persist.c
+index b565a5a..2e10aff 100644
+--- a/src/sg_persist.c
++++ b/src/sg_persist.c
+@@ -33,6 +33,8 @@
+ #include "sg_unaligned.h"
+ #include "sg_pr2serr.h"
+ 
++#include "misc.h"
++
+ static const char * version_str = "0.66 20180615";
+ 
+ 
+@@ -303,7 +305,8 @@ prin_work(int sg_fd, const struct opts_t * op)
+             pr2serr("PR in (%s): bad field in cdb or parameter list (perhaps "
+                     "unsupported service action)\n", b);
+         else {
+-            sg_get_category_sense_str(res, sizeof(bb), bb, op->verbose);
++            _ignore_return(sg_get_category_sense_str(res, sizeof(bb), bb,
++                                                     op->verbose));
+             pr2serr("PR in (%s): %s\n", b, bb);
+         }
+         goto fini;
+@@ -519,7 +522,8 @@ prout_work(int sg_fd, struct opts_t * op)
+                 pr2serr("PR out (%s): bad field in cdb or parameter list "
+                         "(perhaps unsupported service action)\n", b);
+             else {
+-                sg_get_category_sense_str(res, sizeof(bb), bb, op->verbose);
++                _ignore_return(sg_get_category_sense_str(res, sizeof(bb), bb,
++                                                         op->verbose));
+                 pr2serr("PR out (%s): %s\n", b, bb);
+             }
+             goto fini;
+@@ -573,7 +577,8 @@ prout_reg_move_work(int sg_fd, struct opts_t * op)
+         else {
+             char bb[80];
+ 
+-            sg_get_category_sense_str(res, sizeof(bb), bb, op->verbose);
++            _ignore_return(sg_get_category_sense_str(res, sizeof(bb), bb,
++                                                     op->verbose));
+             pr2serr("PR out (register and move): %s\n", bb);
+         }
+         goto fini;
+@@ -1277,7 +1282,7 @@ main(int argc, char * argv[])
+             flagged = true;
+             goto fini;
+         }
+-        sg_cmds_close_device(sg_fd);
++        _ignore_return(sg_cmds_close_device(sg_fd));
+     }
+ 
+     if (! op->readwrite_force) {
+diff --git a/src/sg_xcopy.c b/src/sg_xcopy.c
+index 5facfc8..6230685 100644
+--- a/src/sg_xcopy.c
++++ b/src/sg_xcopy.c
+@@ -67,6 +67,8 @@
+ #include "sg_unaligned.h"
+ #include "sg_pr2serr.h"
+ 
++#include "misc.h"
++
+ static const char * version_str = "0.68 20180811";
+ 
+ #define ME "sg_xcopy: "
+@@ -341,7 +343,7 @@ open_sg(struct xcopy_fp_t * fp, int vb)
+     }
+     if (sg_simple_inquiry(fp->sg_fd, &sir, false, vb)) {
+         pr2serr("INQUIRY failed on %s\n", ebuff);
+-        sg_cmds_close_device(fp->sg_fd);
++        _ignore_return(sg_cmds_close_device(fp->sg_fd));
+         fp->sg_fd = -1;
+         return -1;
+     }
+@@ -415,7 +417,7 @@ dd_filetype_str(int ft, char * buff)
+     if (FT_OTHER & ft)
+         off += sg_scnpr(buff + off, 32, "other (perhaps ordinary file) ");
+     if (FT_ERROR & ft)
+-        sg_scnpr(buff + off, 32, "unable to 'stat' file ");
++        _ignore_return(sg_scnpr(buff + off, 32, "unable to 'stat' file "));
+     return buff;
+ }
+ 
+@@ -640,7 +642,7 @@ scsi_extended_copy(int sg_fd, uint8_t list_id,
+                                 DEF_GROUP_NUM, DEF_3PC_OUT_TIMEOUT,
+                                 xcopyBuff, desc_offset, true, verb);
+     if (res) {
+-        sg_get_category_sense_str(res, sizeof(b), b, verb);
++        _ignore_return(sg_get_category_sense_str(res, sizeof(b), b, verb));
+         pr2serr("Xcopy(LID1): %s\n", b);
+     }
+     return res;
+@@ -660,7 +662,7 @@ scsi_read_capacity(struct xcopy_fp_t *xfp)
+     res = sg_ll_readcap_10(xfp->sg_fd, false /* pmi */, 0, rcBuff,
+                            READ_CAP_REPLY_LEN, true, verb);
+     if (0 != res) {
+-        sg_get_category_sense_str(res, sizeof(b), b, verb);
++        _ignore_return(sg_get_category_sense_str(res, sizeof(b), b, verb));
+         pr2serr("Read capacity(10): %s\n", b);
+         return res;
+     }
+@@ -672,7 +674,7 @@ scsi_read_capacity(struct xcopy_fp_t *xfp)
+         res = sg_ll_readcap_16(xfp->sg_fd, false /* pmi */, 0, rcBuff,
+                                RCAP16_REPLY_LEN, true, verb);
+         if (0 != res) {
+-            sg_get_category_sense_str(res, sizeof(b), b, verb);
++            _ignore_return(sg_get_category_sense_str(res, sizeof(b), b, verb));
+             pr2serr("Read capacity(16): %s\n", b);
+             return res;
+         }
+@@ -714,7 +716,7 @@ scsi_operating_parameter(struct xcopy_fp_t *xfp, int is_target)
+     res = sg_ll_receive_copy_results(xfp->sg_fd, SA_COPY_OP_PARAMS, 0, rcBuff,
+                                      rcBuffLen, true, verb);
+     if (0 != res) {
+-        sg_get_category_sense_str(res, sizeof(b), b, verb);
++        _ignore_return(sg_get_category_sense_str(res, sizeof(b), b, verb));
+         pr2serr("Xcopy operating parameters: %s\n", b);
+         return -res;
+     }
+@@ -1006,8 +1008,8 @@ decode_designation_descriptor(const uint8_t * bp, int i_len)
+ {
+     char c[2048];
+ 
+-    sg_get_designation_descriptor_str(NULL, bp, i_len, 1, verbose,
+-                                      sizeof(c), c);
++    _ignore_return(sg_get_designation_descriptor_str(NULL, bp, i_len, 1,
++                                                     verbose, sizeof(c), c));
+     pr2serr("%s", c);
+ }
+ 
+@@ -1029,7 +1031,8 @@ desc_from_vpd_id(int sg_fd, uint8_t *desc, int desc_len,
+         if (SG_LIB_CAT_ILLEGAL_REQ == res)
+             pr2serr("Device identification VPD page not found\n");
+         else {
+-            sg_get_category_sense_str(res, sizeof(b), b, verbose);
++            _ignore_return(sg_get_category_sense_str(res, sizeof(b), b,
++                                                     verbose));
+             pr2serr("VPD inquiry (Device ID): %s\n", b);
+             pr2serr("   try again with '-vv'\n");
+         }
+@@ -1042,7 +1045,7 @@ desc_from_vpd_id(int sg_fd, uint8_t *desc, int desc_len,
+     res = sg_ll_inquiry(sg_fd, false, true, VPD_DEVICE_ID, rcBuff, len, true,
+                         verb);
+     if (0 != res) {
+-        sg_get_category_sense_str(res, sizeof(b), b, verbose);
++        _ignore_return(sg_get_category_sense_str(res, sizeof(b), b, verbose));
+         pr2serr("VPD inquiry (Device ID): %s\n", b);
+         return res;
+     } else if (rcBuff[1] != VPD_DEVICE_ID) {
+-- 
+1.8.3.1
+
+
+From 3a99f93d11cea7d4273477c698eb6bfb2f6d4696 Mon Sep 17 00:00:00 2001
+From: Gris Ge <fge@redhat.com>
+Date: Wed, 26 Sep 2018 22:14:11 +0800
+Subject: [PATCH 07/30] sg_dd: flock does not allows negative fd.
+
+ * The `outfd` could be -1 in line 1408. We do negative number check on
+   `outfd` before sending to flock.
+
+Signed-off-by: Gris Ge <fge@redhat.com>
+---
+ src/sg_dd.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/src/sg_dd.c b/src/sg_dd.c
+index 6bdbcdb..8696ee7 100644
+--- a/src/sg_dd.c
++++ b/src/sg_dd.c
+@@ -1459,7 +1459,7 @@ open_of(const char * outf, int64_t seek, int bpt, struct flags_t * ofp,
+                         "\n", (uint64_t)offset);
+         }
+     }
+-    if (ofp->flock) {
++    if ((ofp->flock) && (outfd >= 0)) {
+         res = flock(outfd, LOCK_EX | LOCK_NB);
+         if (res < 0) {
+             close(outfd);
+-- 
+1.8.3.1
+
+
+From 158f6547f156b8a7fc175904b4bd502642ed56a5 Mon Sep 17 00:00:00 2001
+From: Gris Ge <fge@redhat.com>
+Date: Wed, 26 Sep 2018 22:21:00 +0800
+Subject: [PATCH 08/30] sginfo: Suspend the fallthrough warning.
+
+* The GCC and Clang will complain about fallthrough of switch statement,
+  use maker comments to suspend that.
+
+Signed-off-by: Gris Ge <fge@redhat.com>
+---
+ src/sginfo.c | 3 +++
+ 1 file changed, 3 insertions(+)
+
+diff --git a/src/sginfo.c b/src/sginfo.c
+index 1032f05..9c626ee 100644
+--- a/src/sginfo.c
++++ b/src/sginfo.c
+@@ -1757,6 +1757,7 @@ trytenbyte:
+                     }
+                     else if (!sorthead) printf("|");
+                 }
++                /* fall through */
+             case 5:     /* physical sector */
+                 while (len > 0) {
+                     snprintf((char *)cbuffer1, 40, "%6d:%2u:%5d",
+@@ -1775,6 +1776,7 @@ trytenbyte:
+                     }
+                     else if (!sorthead) printf("|");
+                 }
++                /* fall through */
+             case 0:     /* lba (32 bit) */
+                 while (len > 0) {
+                     printf("%10d", getnbyte(df, 4));
+@@ -1788,6 +1790,7 @@ trytenbyte:
+                     else
+                         printf("|");
+                 }
++                /* fall through */
+             case 3:     /* lba (64 bit) */
+                 while (len > 0) {
+                     printf("%15" PRId64 , getnbyte_ll(df, 8));
+-- 
+1.8.3.1
+
+
+From 7e90f135eeb3900735847df32ed878d8207c59dc Mon Sep 17 00:00:00 2001
+From: Gris Ge <fge@redhat.com>
+Date: Wed, 26 Sep 2018 22:24:01 +0800
+Subject: [PATCH 09/30] sg_get_lba_status: Fix incorrect use of
+ sg_ll_get_lba_status32.
+
+Fix the incorrect argument order of `sg_get_lba_status()`.
+
+Signed-off-by: Gris Ge <fge@redhat.com>
+---
+ src/sg_get_lba_status.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/src/sg_get_lba_status.c b/src/sg_get_lba_status.c
+index 91c7a96..61a823b 100644
+--- a/src/sg_get_lba_status.c
++++ b/src/sg_get_lba_status.c
+@@ -340,7 +340,7 @@ main(int argc, char * argv[])
+         res = sg_ll_get_lba_status16(sg_fd, lba, rt, glbasBuffp, maxlen, true,
+                                      verbose);
+     else if (do_32)     /* keep analyser happy since do_32 must be true */
+-        res = sg_ll_get_lba_status32(sg_fd, lba, element_id, scan_len, rt,
++        res = sg_ll_get_lba_status32(sg_fd, lba, scan_len, element_id, rt,
+                                      glbasBuffp, maxlen, true, verbose);
+ 
+     ret = res;
+-- 
+1.8.3.1
+
+
+From c86a7be69c8601722ba39ef6eacc6aaa993b3d5a Mon Sep 17 00:00:00 2001
+From: Gris Ge <fge@redhat.com>
+Date: Wed, 26 Sep 2018 22:35:35 +0800
+Subject: [PATCH 10/30] rescan-scsi-bus.sh: Fix shellcheck warning of SC2155.
+
+Declare and assign separately to avoid masking return values:
+    https://github.com/koalaman/shellcheck/wiki/SC2155
+
+Signed-off-by: Gris Ge <fge@redhat.com>
+---
+ scripts/rescan-scsi-bus.sh | 24 ++++++++++++++++--------
+ 1 file changed, 16 insertions(+), 8 deletions(-)
+
+diff --git a/scripts/rescan-scsi-bus.sh b/scripts/rescan-scsi-bus.sh
+index 6989208..75e169a 100755
+--- a/scripts/rescan-scsi-bus.sh
++++ b/scripts/rescan-scsi-bus.sh
+@@ -314,8 +314,10 @@ testonline ()
+       fi
+   else
+       # Ignore disk revision change
+-      local old_str_no_rev=`echo "$TMPSTR" | sed -e 's/.\{4\}$//'`
+-      local new_str_no_rev=`echo "$STR" | sed -e 's/.\{4\}$//'`
++      local old_str_no_rev
++      old_str_no_rev=`echo "$TMPSTR" | sed -e 's/.\{4\}$//'`
++      local new_str_no_rev
++      new_str_no_rev=`echo "$STR" | sed -e 's/.\{4\}$//'`
+       if [ "$old_str_no_rev" != "$new_str_no_rev" ]; then
+         echo -e "\e[A\e[A\e[A\e[A${red}$SGDEV changed: ${bold}\nfrom:${SCSISTR#* } \nto: $STR ${norm} \n\n\n"
+         return 1
+@@ -696,7 +698,8 @@ searchexisting()
+   local tmpch;
+   local tmpid
+   local match=0
+-  local targets=`ls -d /sys/class/scsi_device/$host:* 2> /dev/null | egrep -o $host:[0-9]+:[0-9]+ | sort | uniq`
++  local targets
++  targets=`ls -d /sys/class/scsi_device/$host:* 2> /dev/null | egrep -o $host:[0-9]+:[0-9]+ | sort | uniq`
+ 
+   # Nothing came back on this host, so we should skip it
+   test -z "$targets" && return
+@@ -742,13 +745,15 @@ searchexisting()
+ findremapped()
+ {
+   local hctl=;
+-  local devs=`ls /sys/class/scsi_device/`
++  local devs
++  devs=`ls /sys/class/scsi_device/`
+   local sddev=
+   local id_serial=
+   local id_serial_old=
+   local remapped=
+   mpaths=""
+-  local tmpfile=$(mktemp /tmp/rescan-scsi-bus.XXXXXXXX 2> /dev/null)
++  local tmpfile
++  tmpfile=$(mktemp /tmp/rescan-scsi-bus.XXXXXXXX 2> /dev/null)
+ 
+   if [ -z "$tmpfile" ] ; then
+     tmpfile="/tmp/rescan-scsi-bus.$$"
+@@ -835,7 +840,8 @@ incrchgd()
+   fi
+ 
+   if test -n "$mp_enable" ; then
+-    local sdev="`findsddev \"$hctl\"`"
++    local sdev
++    sdev="`findsddev \"$hctl\"`"
+     if test -n "$sdev" ; then
+       findmultipath "$sdev"
+     fi
+@@ -853,7 +859,8 @@ incrrmvd()
+   fi
+ 
+   if test -n "$mp_enable" ; then
+-    local sdev="`findsddev \"$hctl\"`"
++    local sdev
++    sdev="`findsddev \"$hctl\"`"
+     if test -n "$sdev" ; then
+       findmultipath "$sdev"
+     fi
+@@ -902,7 +909,8 @@ findmultipath()
+     return 1
+   fi
+ 
+-  local maj_min=`cat /sys/block/$dev/dev`
++  local maj_min
++  maj_min=`cat /sys/block/$dev/dev`
+   for mp in $($DMSETUP ls --target=multipath | cut -f 1) ; do
+     [ "$mp" = "No" ] && break;
+     if $DMSETUP status $mp | grep -q " $maj_min "; then
+-- 
+1.8.3.1
+
+
+From 0185fcb6527b331082eb10ef733a2a2f746578d8 Mon Sep 17 00:00:00 2001
+From: Gris Ge <fge@redhat.com>
+Date: Wed, 26 Sep 2018 22:36:44 +0800
+Subject: [PATCH 11/30] rescan-scsi-bus.sh: Fix incorrect use of `break`.
+
+Should use `return` instead in `if` code block.
+
+Signed-off-by: Gris Ge <fge@redhat.com>
+---
+ scripts/rescan-scsi-bus.sh | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/scripts/rescan-scsi-bus.sh b/scripts/rescan-scsi-bus.sh
+index 75e169a..37f121d 100755
+--- a/scripts/rescan-scsi-bus.sh
++++ b/scripts/rescan-scsi-bus.sh
+@@ -548,7 +548,7 @@ dolunscan()
+       printf "\r\e[A";
+       # Optimization: if lun==0, stop here (only if in non-remove mode)
+       if test $lun = 0 -a -z "$remove" -a $optscan = 1; then 
+-        break;
++        return;
+       fi
+     else 
+       if test "$remappedlun0" != "2" ; then
+-- 
+1.8.3.1
+
+
+From 533e455337251971a94b5d9bce2183fb55383db6 Mon Sep 17 00:00:00 2001
+From: Gris Ge <fge@redhat.com>
+Date: Wed, 26 Sep 2018 22:39:13 +0800
+Subject: [PATCH 12/30] rescan-scsi-bus.sh: Use dummy for throwaway variable.
+
+* The `offset` is unused and should be replaced by dummy `_`.
+    https://github.com/koalaman/shellcheck/wiki/SC2034
+
+Signed-off-by: Gris Ge <fge@redhat.com>
+---
+ scripts/rescan-scsi-bus.sh | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/scripts/rescan-scsi-bus.sh b/scripts/rescan-scsi-bus.sh
+index 37f121d..ed3cf49 100755
+--- a/scripts/rescan-scsi-bus.sh
++++ b/scripts/rescan-scsi-bus.sh
+@@ -235,7 +235,7 @@ is_removable ()
+   p=/sys/class/scsi_device/${host}:${channel}:${id}:${lun}/device/inquiry
+   # Extract the second byte of the INQUIRY response and check bit 7 (mask 0x80).
+   b=$(od -tx1 -j1 -N1 "$p" 2>/dev/null |
+-           { read -r offset byte rest; echo -n "$byte"; })
++           { read -r _ byte rest; echo -n "$byte"; })
+   if [ -n "$b" ]; then
+     echo $(((0x$b & 0x80) != 0))
+   else
+-- 
+1.8.3.1
+
+
+From 751afef7a7a5049a6d1a6171efb65e9e2f515911 Mon Sep 17 00:00:00 2001
+From: Gris Ge <fge@redhat.com>
+Date: Wed, 26 Sep 2018 22:55:08 +0800
+Subject: [PATCH 13/30] sg_write_x: parameter string might overflow a char
+ array.
+
+ * The `lcp` might overflow the char array `c`. Use `snprintf` instead.
+
+Signed-off-by: Gris Ge <fge@redhat.com>
+---
+ src/sg_write_x.c | 6 ++++--
+ 1 file changed, 4 insertions(+), 2 deletions(-)
+
+diff --git a/src/sg_write_x.c b/src/sg_write_x.c
+index 3b8f091..89b5616 100644
+--- a/src/sg_write_x.c
++++ b/src/sg_write_x.c
+@@ -671,8 +671,10 @@ parse_scat_pi_line(const char * lcp, uint8_t * up, uint32_t * sum_num)
+     if (cp) {   /* copy from first non whitespace ... */
+         memcpy(c, lcp, cp - lcp);  /* ... to just prior to first '#' */
+         c[cp - lcp] = '\0';
+-    } else
+-        strcpy(c, lcp);         /* ... to end of line, including null */
++    } else {
++        /* ... to end of line, including null */
++        snprintf(c, sizeof(c)/sizeof(char), "%s", lcp);
++    }
+     ll = sg_get_llnum(bp);
+     ok = ((-1 != ll) || all_ascii_f_s(bp, 16));
+     if (! ok) {
+-- 
+1.8.3.1
+
+
+From cd7fdbdeffabd41fe9e9c65e1158cbdb6f906f20 Mon Sep 17 00:00:00 2001
+From: Gris Ge <fge@redhat.com>
+Date: Wed, 26 Sep 2018 22:56:48 +0800
+Subject: [PATCH 14/30] sg_vpd_vendor: Fix potential string overflow.
+
+Currently, none of `vendor_vpd_pg` name string is longer than 64,
+to ease the coverity scan, change strcpy to snprintf.
+
+Signed-off-by: Gris Ge <fge@redhat.com>
+---
+ src/sg_vpd_vendor.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/src/sg_vpd_vendor.c b/src/sg_vpd_vendor.c
+index 3c75177..9a73748 100644
+--- a/src/sg_vpd_vendor.c
++++ b/src/sg_vpd_vendor.c
+@@ -1420,7 +1420,7 @@ svpd_decode_vendor(int sg_fd, struct opts_t * op, int off)
+     if (0 == res) {
+         vnp = svpd_get_v_detail(op->vpd_pn, op->vend_prod_num, 0xf & rp[0]);
+         if (vnp && vnp->name)
+-            strcpy(name, vnp->name);
++            snprintf(name, sizeof(name)/sizeof(char), "%s", vnp->name);
+         else
+             snprintf(name, sizeof(name) - 1, "Vendor VPD page=0x%x",
+                      op->vpd_pn);
+-- 
+1.8.3.1
+
+
+From 7ddd2de9d7c7ebcfcb3c33da9993cb60a91b0525 Mon Sep 17 00:00:00 2001
+From: Gris Ge <fge@redhat.com>
+Date: Wed, 26 Sep 2018 23:38:05 +0800
+Subject: [PATCH 15/30] sg_write_x: Remove dead code.
+
+* The `k` is always smaller than 3, `default:` will never be reached.
+* The `ok` is already checked for non-zero.
+
+Signed-off-by: Gris Ge <fge@redhat.com>
+---
+ src/sg_write_x.c | 10 +---------
+ 1 file changed, 1 insertion(+), 9 deletions(-)
+
+diff --git a/src/sg_write_x.c b/src/sg_write_x.c
+index 89b5616..d6949ed 100644
+--- a/src/sg_write_x.c
++++ b/src/sg_write_x.c
+@@ -750,10 +750,6 @@ parse_scat_pi_line(const char * lcp, uint8_t * up, uint32_t * sum_num)
+             } else if (up)
+                 sg_put_unaligned_be16((uint16_t)ll, up + 18);
+             break;
+-        default:
+-            pr2serr("%s: k=%d should not be >= 3\n", __func__, k);
+-            ok = false;
+-            break;
+         }
+         if (! ok)
+             break;
+@@ -774,13 +770,9 @@ parse_scat_pi_line(const char * lcp, uint8_t * up, uint32_t * sum_num)
+             if (up)
+                 sg_put_unaligned_be16((uint16_t)DEF_TM, up + 18);
+             break;
+-        default:
+-            pr2serr("%s: k=%d should not be >= 3\n", __func__, k);
+-            ok = false;
+-            break;
+         }
+     }
+-    return ok ? 0 : SG_LIB_SYNTAX_ERROR;
++    return 0;
+ }
+ 
+ /* Read pairs or quintets from a scat_file and places them in a T10 scatter
+-- 
+1.8.3.1
+
+
+From 2ff6254d584b2c673b9d6289da2f6af6e293a3d3 Mon Sep 17 00:00:00 2001
+From: Gris Ge <fge@redhat.com>
+Date: Wed, 26 Sep 2018 23:36:58 +0800
+Subject: [PATCH 16/30] sg_vpd: Remove dead code.
+
+ * The `n` is between 0 and 7, the `default` statement is never reached.
+
+ * The `do_hex` will never been bigger than 2 at that line.
+
+Signed-off-by: Gris Ge <fge@redhat.com>
+---
+ src/sg_vpd.c | 7 -------
+ 1 file changed, 7 deletions(-)
+
+diff --git a/src/sg_vpd.c b/src/sg_vpd.c
+index a15ed74..081232d 100644
+--- a/src/sg_vpd.c
++++ b/src/sg_vpd.c
+@@ -1233,9 +1233,6 @@ decode_x_inq_vpd(uint8_t * b, int len, int do_hex, bool do_long,
+             case 7:
+                 printf(" [protection types 1, 2 and 3 supported]\n");
+                 break;
+-            default:
+-                printf("\n");
+-                break;
+             }
+         } else
+             printf("\n");
+@@ -1991,8 +1988,6 @@ decode_proto_lu_vpd(uint8_t * buff, int len, int do_hex)
+             continue;
+         if (2 == do_hex)
+             hex2stdout(bp + 8, desc_len, 1);
+-        else if (do_hex > 2)
+-            hex2stdout(bp, bump, 1);
+         else {
+             switch (proto) {
+             case TPROTO_SAS:
+@@ -2042,8 +2037,6 @@ decode_proto_port_vpd(uint8_t * buff, int len, int do_hex)
+             continue;
+         if (2 == do_hex)
+             hex2stdout(bp + 8, desc_len, 1);
+-        else if (do_hex > 2)
+-            hex2stdout(bp, bump, 1);
+         else {
+             switch (proto) {
+             case TPROTO_SAS:    /* page added in spl3r02 */
+-- 
+1.8.3.1
+
+
+From 013eb336d61d56eb7dc3c67b6551096a8175527a Mon Sep 17 00:00:00 2001
+From: Gris Ge <fge@redhat.com>
+Date: Wed, 26 Sep 2018 23:41:46 +0800
+Subject: [PATCH 17/30] sg_test_rwbuf: Fix incorrect initial value of
+ `version_given`.
+
+* With current code, no real code could be execute as
+  `version_give` is always true(if not in debug mode).
+
+Signed-off-by: Gris Ge <fge@redhat.com>
+---
+ src/sg_test_rwbuf.c | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/src/sg_test_rwbuf.c b/src/sg_test_rwbuf.c
+index f187ba0..52b7e81 100644
+--- a/src/sg_test_rwbuf.c
++++ b/src/sg_test_rwbuf.c
+@@ -386,8 +386,8 @@ void usage ()
+ 
+ int main (int argc, char * argv[])
+ {
+-        bool verbose_given = true;
+-        bool version_given = true;
++        bool verbose_given = false;
++        bool version_given = false;
+         int sg_fd, res;
+         const char * device_name = NULL;
+         int times = 1;
+-- 
+1.8.3.1
+
+
+From bf1ee2b1ecc966f50b19bec4126a58b3c4c53111 Mon Sep 17 00:00:00 2001
+From: Gris Ge <fge@redhat.com>
+Date: Wed, 26 Sep 2018 23:53:52 +0800
+Subject: [PATCH 18/30] sg_ses: Remove dead code.
+
+* The `n` is always '>= 1' after the for loop.
+* All the possible value between 0x20 to 0x2f is covered by preview
+  switch statements.
+* The cp is pointing to a stack memory, is always not NULL.
+
+Signed-off-by: Gris Ge <fge@redhat.com>
+---
+ src/sg_ses.c | 11 +----------
+ 1 file changed, 1 insertion(+), 10 deletions(-)
+
+diff --git a/src/sg_ses.c b/src/sg_ses.c
+index 29b66b3..9c4b0c0 100644
+--- a/src/sg_ses.c
++++ b/src/sg_ses.c
+@@ -1405,9 +1405,6 @@ parse_cmd_line(struct opts_t *op, int argc, char *argv[])
+             else if (1 == n) {
+                 op->page_code_given = true;
+                 op->page_code = pc;
+-            } else {
+-                pr2serr("No dpage found --data= argument\n");
+-                goto err_help;
+             }
+             if (op->verbose > 3) {
+                 int k;
+@@ -2431,9 +2428,6 @@ find_sas_connector_type(int conn_type, bool abridged, char * buff,
+         else if (conn_type < 0x20)
+             snprintf(buff, buff_len, "unknown internal wide connector type: "
+                      "0x%x", conn_type);
+-        else if (conn_type < 0x30)
+-            snprintf(buff, buff_len, "unknown internal connector to end "
+-                     "device, type: 0x%x", conn_type);
+         else if (conn_type < 0x3f)
+             snprintf(buff, buff_len, "reserved for internal connector, "
+                      "type: 0x%x", conn_type);
+@@ -2637,8 +2631,6 @@ enc_status_helper(const char * pad, const uint8_t * statp, int etype,
+             printf("%slast 3 bytes (hex): %02x %02x %02x\n", pad, statp[1],
+                    statp[2], statp[3]);
+             break;
+-        default:
+-            break;
+         }
+         break;
+     case UI_POWER_SUPPLY_ETC:   /* Uninterruptible power supply */
+@@ -4260,8 +4252,7 @@ process_status_dpage(struct sg_pt_base * ptvp, int page_code, uint8_t * resp,
+         subenc_nickname_sdg(resp, resp_len);
+         break;
+     default:
+-        printf("Cannot decode response from diagnostic "
+-               "page: %s\n", (cp ? cp : "<unknown>"));
++        printf("Cannot decode response from diagnostic page: %s\n", cp);
+         hex2stdout(resp, resp_len, 0);
+     }
+ 
+-- 
+1.8.3.1
+
+
+From d1a53f72716e0013c6ff4e76c4ccae575e32e35d Mon Sep 17 00:00:00 2001
+From: Gris Ge <fge@redhat.com>
+Date: Thu, 27 Sep 2018 00:07:56 +0800
+Subject: [PATCH 19/30] sg_sanitize: Remove dead code.
+
+ * The `has_di` will always be 0 at that line.
+
+Signed-off-by: Gris Ge <fge@redhat.com>
+---
+ src/sg_sanitize.c | 5 -----
+ 1 file changed, 5 deletions(-)
+
+diff --git a/src/sg_sanitize.c b/src/sg_sanitize.c
+index b45462f..b810128 100644
+--- a/src/sg_sanitize.c
++++ b/src/sg_sanitize.c
+@@ -388,11 +388,6 @@ print_dev_id(int fd, uint8_t * sinq_resp, int max_rlen, int verbose)
+         n = (SAFE_STD_INQ_RESP_LEN - 4);
+     for (k = 0, has_sn = 0, has_di = 0; k < n; ++k) {
+         if (VPD_UNIT_SERIAL_NUM == b[4 + k]) {
+-            if (has_di) {
+-                if (verbose)
+-                    pr2serr("VPD_SUPPORTED_VPDS dis-ordered\n");
+-                return 0;
+-            }
+             ++has_sn;
+         } else if (VPD_DEVICE_ID == b[4 + k]) {
+             ++has_di;
+-- 
+1.8.3.1
+
+
+From 880d18e2e0296a91a65f7f94dcd8ad5e2497cfa6 Mon Sep 17 00:00:00 2001
+From: Gris Ge <fge@redhat.com>
+Date: Thu, 27 Sep 2018 00:09:08 +0800
+Subject: [PATCH 20/30] sg_rbuf: Remove dead code.
+
+The `res` is always >=0 at that line.
+
+Signed-off-by: Gris Ge <fge@redhat.com>
+---
+ src/sg_rbuf.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/src/sg_rbuf.c b/src/sg_rbuf.c
+index 61604d3..6b74436 100644
+--- a/src/sg_rbuf.c
++++ b/src/sg_rbuf.c
+@@ -681,5 +681,5 @@ main(int argc, char * argv[])
+     else
+         printf("read buffer non-zero\n");
+ #endif
+-    return (res >= 0) ? res : SG_LIB_CAT_OTHER;
++    return res;
+ }
+-- 
+1.8.3.1
+
+
+From d58bc5904989a381b9ab541409b83578a56b75da Mon Sep 17 00:00:00 2001
+From: Gris Ge <fge@redhat.com>
+Date: Thu, 27 Sep 2018 00:17:07 +0800
+Subject: [PATCH 21/30] sg_luns: Remove dead code.
+
+The `a_method` is always between 0 and 3.
+
+Signed-off-by: Gris Ge <fge@redhat.com>
+---
+ src/sg_luns.c | 3 ---
+ 1 file changed, 3 deletions(-)
+
+diff --git a/src/sg_luns.c b/src/sg_luns.c
+index 904b2ce..9115070 100644
+--- a/src/sg_luns.c
++++ b/src/sg_luns.c
+@@ -306,9 +306,6 @@ decode_lun(const char * leadin, const uint8_t * lunp, bool lu_cong,
+                 }
+             }
+             break;
+-        default:
+-            printf("%s<<%s: faulty logic>>\n", l_leadin, __func__);
+-            break;
+         }
+         if (next_level)
+             continue;
+-- 
+1.8.3.1
+
+
+From 601fe8621fa0fb1d2674d67181dd368936354cb4 Mon Sep 17 00:00:00 2001
+From: Gris Ge <fge@redhat.com>
+Date: Thu, 27 Sep 2018 00:18:57 +0800
+Subject: [PATCH 22/30] sg_logs: Fix typo in variable name.
+
+Signed-off-by: Gris Ge <fge@redhat.com>
+---
+ src/sg_logs.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/src/sg_logs.c b/src/sg_logs.c
+index e4f265e..7001ee4 100644
+--- a/src/sg_logs.c
++++ b/src/sg_logs.c
+@@ -7109,7 +7109,7 @@ main(int argc, char * argv[])
+         if (k) {
+             if (SG_LIB_CAT_NOT_READY == k)
+                 pr2serr("log_select: device not ready\n");
+-            else if (SG_LIB_CAT_ILLEGAL_REQ == res)
++            else if (SG_LIB_CAT_ILLEGAL_REQ == k)
+                 pr2serr("log_select: field in cdb illegal\n");
+             else if (SG_LIB_CAT_INVALID_OP == k)
+                 pr2serr("log_select: not supported\n");
+-- 
+1.8.3.1
+
+
+From e921a23e89f91b50929e9f4dc2f5902021f689d9 Mon Sep 17 00:00:00 2001
+From: Gris Ge <fge@redhat.com>
+Date: Thu, 27 Sep 2018 00:19:40 +0800
+Subject: [PATCH 23/30] sg_inq: Remove dead code.
+
+The `support_num` is always between 0 and 7.
+
+Signed-off-by: Gris Ge <fge@redhat.com>
+---
+ src/sg_inq.c | 1 -
+ 1 file changed, 1 deletion(-)
+
+diff --git a/src/sg_inq.c b/src/sg_inq.c
+index b32ab87..1664345 100644
+--- a/src/sg_inq.c
++++ b/src/sg_inq.c
+@@ -3428,7 +3428,6 @@ cmddt_process(int sg_fd, const struct opts_t * op)
+                         break;
+                 case 6: desc_p = "vendor specific (6)"; break;
+                 case 7: desc_p = "reserved (7)"; break;
+-                default: desc_p = "impossible value > 7"; break;
+                 }
+                 if (prnt_cmd) {
+                     printf("  Support field: %s [", desc_p);
+-- 
+1.8.3.1
+
+
+From 27a19f00c6c58e91296e918a34afb2b2bdcac822 Mon Sep 17 00:00:00 2001
+From: Gris Ge <fge@redhat.com>
+Date: Thu, 27 Sep 2018 00:20:32 +0800
+Subject: [PATCH 24/30] sg_format: Remove dead code.
+
+The `has_di` is always 0 in that line.
+
+Signed-off-by: Gris Ge <fge@redhat.com>
+---
+ src/sg_format.c | 6 ------
+ 1 file changed, 6 deletions(-)
+
+diff --git a/src/sg_format.c b/src/sg_format.c
+index af1a033..61ee77f 100644
+--- a/src/sg_format.c
++++ b/src/sg_format.c
+@@ -700,12 +700,6 @@ print_dev_id(int fd, uint8_t * sinq_resp, int max_rlen,
+                 n = (SAFE_STD_INQ_RESP_LEN - 4);
+         for (k = 0, has_sn = 0, has_di = 0; k < n; ++k) {
+                 if (VPD_UNIT_SERIAL_NUM == b[4 + k]) {
+-                        if (has_di) {
+-                                if (op->verbose)
+-                                        pr2serr("VPD_SUPPORTED_VPDS "
+-                                                "dis-ordered\n");
+-                                goto out;
+-                        }
+                         ++has_sn;
+                 } else if (VPD_DEVICE_ID == b[4 + k]) {
+                         ++has_di;
+-- 
+1.8.3.1
+
+
+From 8292e3e96cac1f234f1139161c5e92e29b545da1 Mon Sep 17 00:00:00 2001
+From: Gris Ge <fge@redhat.com>
+Date: Thu, 27 Sep 2018 00:22:35 +0800
+Subject: [PATCH 25/30] sg_dd: Remove dead code.
+
+The `ret` there is always non-zero.
+
+Signed-off-by: Gris Ge <fge@redhat.com>
+---
+ src/sg_dd.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/src/sg_dd.c b/src/sg_dd.c
+index 8696ee7..aa544c7 100644
+--- a/src/sg_dd.c
++++ b/src/sg_dd.c
+@@ -976,7 +976,7 @@ err_out:
+         }
+         return may_coe ? 0 : ret;
+     } else
+-        return ret ? ret : -1;
++        return ret;
+ }
+ 
+ 
+-- 
+1.8.3.1
+
+
+From 50ba84424a1226dfef9a2746fd797cffbc544aad Mon Sep 17 00:00:00 2001
+From: Gris Ge <fge@redhat.com>
+Date: Thu, 27 Sep 2018 00:23:49 +0800
+Subject: [PATCH 26/30] sg_pt_linux_nvme: Remove dead code.
+
+The `return 0` already stop the `if (dout_len > 0)` check.
+
+Signed-off-by: Gris Ge <fge@redhat.com>
+---
+ lib/sg_pt_linux_nvme.c | 5 -----
+ 1 file changed, 5 deletions(-)
+
+diff --git a/lib/sg_pt_linux_nvme.c b/lib/sg_pt_linux_nvme.c
+index 18b1374..98feaef 100644
+--- a/lib/sg_pt_linux_nvme.c
++++ b/lib/sg_pt_linux_nvme.c
+@@ -899,11 +899,6 @@ sntl_senddiag(struct sg_pt_linux_scsi * ptp, const uint8_t * cdbp,
+             return 0;
+         } else
+             return 0;     /* nothing to do */
+-        if (dout_len > 0) {
+-            if (vb)
+-                pr2ws("%s: dout given but PF clear\n", __func__);
+-            return SCSI_PT_DO_BAD_PARAMS;
+-        }
+     }
+     if (dout_len < 4) {
+         if (vb)
+-- 
+1.8.3.1
+
+
+From 570105df861066e0943fc6a7511172acdeb212c0 Mon Sep 17 00:00:00 2001
+From: Gris Ge <fge@redhat.com>
+Date: Fri, 28 Sep 2018 19:50:11 +0800
+Subject: [PATCH 27/30] sg_lib: Remove dead code.
+
+Signed-off-by: Gris Ge <fge@redhat.com>
+---
+ lib/sg_lib.c | 8 +-------
+ 1 file changed, 1 insertion(+), 7 deletions(-)
+
+diff --git a/lib/sg_lib.c b/lib/sg_lib.c
+index c281cce..e7cac29 100644
+--- a/lib/sg_lib.c
++++ b/lib/sg_lib.c
+@@ -2123,14 +2123,11 @@ sg_get_command_size(uint8_t opcode)
+     switch ((opcode >> 5) & 0x7) {
+     case 0:
+         return 6;
+-    case 1: case 2: case 6: case 7:
+-        return 10;
+     case 3: case 5:
+         return 12;
+-        break;
+     case 4:
+         return 16;
+-    default:
++    default:        /* 1, 2, 6, 7 */
+         return 10;
+     }
+ }
+@@ -2267,9 +2264,6 @@ sg_get_opcode_name(uint8_t cmd_byte0, int peri_type, int buff_len,
+     case 7:
+         sg_scnpr(buff, buff_len, "Vendor specific [0x%x]", (int)cmd_byte0);
+         break;
+-    default:
+-        sg_scnpr(buff, buff_len, "Opcode=0x%x", (int)cmd_byte0);
+-        break;
+     }
+ }
+ 
+-- 
+1.8.3.1
+
+
+From 26932a6b4e5a1e844df3edcef86d399391f4b18c Mon Sep 17 00:00:00 2001
+From: Gris Ge <fge@redhat.com>
+Date: Thu, 27 Sep 2018 00:33:00 +0800
+Subject: [PATCH 28/30] sg_vpd: Fix protantially overflowing of uint64_t.
+
+Signed-off-by: Gris Ge <fge@redhat.com>
+---
+ src/sg_vpd.c | 6 +++---
+ 1 file changed, 3 insertions(+), 3 deletions(-)
+
+diff --git a/src/sg_vpd.c b/src/sg_vpd.c
+index 081232d..2865af4 100644
+--- a/src/sg_vpd.c
++++ b/src/sg_vpd.c
+@@ -1929,9 +1929,9 @@ decode_3party_copy_vpd(uint8_t * buff, int len, int do_hex, int pdt,
+                 printf("  Maximum identified concurrent copies: %u\n", u);
+                 u = sg_get_unaligned_be32(bp + 12);
+                 printf("  Maximum segment length: %u\n", u);
+-                ull = (1 << bp[16]); /* field is power of 2 */
++                ull = (1 << bp[16]) & UINT64_MAX; /* field is power of 2 */
+                 printf("  Data segment granularity: %" PRIu64 "\n", ull);
+-                ull = (1 << bp[17]);
++                ull = (1 << bp[17]) & UINT64_MAX;
+                 printf("  Inline data granularity: %" PRIu64 "\n", ull);
+                 break;
+             case 0x9101:
+@@ -1943,7 +1943,7 @@ decode_3party_copy_vpd(uint8_t * buff, int len, int do_hex, int pdt,
+                 printf(" Held data:\n");
+                 u = sg_get_unaligned_be32(bp + 4);
+                 printf("  Held data limit: %u\n", u);
+-                ull = (1 << bp[8]);
++                ull = (1 << bp[8]) & UINT64_MAX;
+                 printf("  Held data granularity: %" PRIu64 "\n", ull);
+                 break;
+             default:
+-- 
+1.8.3.1
+
+
+From 5b2e117dee27ec7cebecd042b2d505f2b6dcb461 Mon Sep 17 00:00:00 2001
+From: Gris Ge <fge@redhat.com>
+Date: Fri, 28 Sep 2018 19:45:26 +0800
+Subject: [PATCH 29/30] sg_lib: Removed dead code.
+
+ * The value 32 stored in `len` is never used afterwords.
+ * The `bump` initial value is always been overridden.
+
+Signed-off-by: Gris Ge <fge@redhat.com>
+---
+ lib/sg_lib.c | 4 ----
+ 1 file changed, 4 deletions(-)
+
+diff --git a/lib/sg_lib.c b/lib/sg_lib.c
+index e7cac29..a691b02 100644
+--- a/lib/sg_lib.c
++++ b/lib/sg_lib.c
+@@ -545,7 +545,6 @@ sg_decode_transportid_str(const char * lip, uint8_t * bp, int bplen,
+     }
+     if (NULL == lip)
+         lip = "";
+-    bump = TRANSPORT_ID_MIN_LEN; /* should be overwritten in all loop paths */
+     for (k = 0, n = 0; bplen > 0; ++k, bp += bump, bplen -= bump) {
+         if ((k > 0) && only_one)
+             break;
+@@ -1846,9 +1845,6 @@ sg_get_sense_str(const char * lip, const uint8_t * sbp, int sb_len,
+             sg_scnpr(b + r, blen - r, "%s  lba=0x%x\n", lip,
+                      sg_get_unaligned_be24(sbp + 1) & 0x1fffff);
+         n += sg_scnpr(cbp + n, cblen - n, "%s\n", b);
+-        len = sb_len;
+-        if (len > 32)
+-            len = 32;   /* trim in case there is a lot of rubbish */
+     }
+ check_raw:
+     if (raw_sinfo) {
+-- 
+1.8.3.1
+
+
+From 8ebcd159bbc41f63fa96e904dee9307b2ee7aec2 Mon Sep 17 00:00:00 2001
+From: Gris Ge <fge@redhat.com>
+Date: Fri, 28 Sep 2018 19:59:28 +0800
+Subject: [PATCH 30/30] sg_cmds_basic: Check resp for NULL before doing memset.
+
+Signed-off-by: Gris Ge <fge@redhat.com>
+---
+ lib/sg_cmds_basic.c | 7 +++++++
+ 1 file changed, 7 insertions(+)
+
+diff --git a/lib/sg_cmds_basic.c b/lib/sg_cmds_basic.c
+index e625465..f4021bb 100644
+--- a/lib/sg_cmds_basic.c
++++ b/lib/sg_cmds_basic.c
+@@ -324,6 +324,13 @@ sg_ll_inquiry_com(struct sg_pt_base * ptvp, bool cmddt, bool evpd, int pg_op,
+     uint8_t sense_b[SENSE_BUFF_LEN];
+     uint8_t * up;
+ 
++    if (resp == NULL) {
++        if (verbose)
++            pr2ws("Got NULL `resp` pointer");
++        return SG_LIB_CAT_MALFORMED;
++    }
++
++
+     if (cmddt)
+         inq_cdb[1] |= 0x2;
+     if (evpd)
+-- 
+1.8.3.1
+
