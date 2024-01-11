@@ -1,0 +1,25 @@
+From d8d16e8d7b520e7d00003f57ae78233d993cf781 Mon Sep 17 00:00:00 2001
+From: Tomas Bzatek <tbzatek@redhat.com>
+Date: Wed, 8 Jun 2022 16:55:19 +0200
+Subject: [PATCH] sg_vpd_vendor: Fix missing newline in the
+ svpd_decode_vendor() error path
+
+---
+ src/sg_vpd_vendor.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/src/sg_vpd_vendor.c b/src/sg_vpd_vendor.c
+index 4f3b25e..e0d57fc 100644
+--- a/src/sg_vpd_vendor.c
++++ b/src/sg_vpd_vendor.c
+@@ -1557,6 +1557,6 @@ svpd_decode_vendor(int sg_fd, struct opts_t * op, int off)
+             return 0;
+         }
+     } else
+-        pr2serr("Vendor VPD page=0x%x  failed to fetch", op->vpd_pn);
++        pr2serr("Vendor VPD page=0x%x  failed to fetch\n", op->vpd_pn);
+     return res;
+ }
+-- 
+2.36.1
+

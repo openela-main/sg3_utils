@@ -1,0 +1,27 @@
+From 80b570a1f890d2912418f7698213dfca40443fa1 Mon Sep 17 00:00:00 2001
+From: "Nitin U. Yewale" <nyewale@redhat.com>
+Date: Mon, 3 Jan 2022 13:12:12 +0530
+Subject: [PATCH] fix crash with rescan-scsi-bus.sh -r
+
+---
+ scripts/rescan-scsi-bus.sh | 6 ++++++
+ 1 file changed, 6 insertions(+)
+
+diff --git a/scripts/rescan-scsi-bus.sh b/scripts/rescan-scsi-bus.sh
+index 46fe6c0..e34ea35 100755
+--- a/scripts/rescan-scsi-bus.sh
++++ b/scripts/rescan-scsi-bus.sh
+@@ -307,7 +307,13 @@ testonline ()
+   IPREV=$(echo "$INQ" | grep 'Product revision level:' | sed 's/^[^:]*: \(.*\)$/\1/')
+   STR=$(printf "  Vendor: %-08s Model: %-16s Rev: %-4s" "$IVEND" "$IPROD" "$IPREV")
+   IPTYPE=$(echo "$INQ" | sed -n 's/.* Device_type=\([0-9]*\) .*/\1/p')
++  if [ -z "$IPTYPE" ]; then
++    IPTYPE=$(echo "$INQ" | sed -n 's/.* PDT=\([0-9]*\) .*/\1/p')
++  fi
+   IPQUAL=$(echo "$INQ" | sed -n 's/ *PQual=\([0-9]*\)  Device.*/\1/p')
++  if [ -z "$IPQUAL" ] ; then
++    IPQUAL=$(echo "$INQ" | sed -n 's/ *PQual=\([0-9]*\)  PDT.*/\1/p')
++  fi
+   if [ "$IPQUAL" != 0 ] ; then
+     [ -z "$IPQUAL" ] && IPQUAL=3
+     [ -z "$IPTYPE" ] && IPTYPE=31

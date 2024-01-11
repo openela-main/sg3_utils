@@ -1,0 +1,25 @@
+From 975c80c40b7e4244de94acc95144d81f80e08cb1 Mon Sep 17 00:00:00 2001
+From: Tomas Bzatek <tbzatek@redhat.com>
+Date: Mon, 17 Jan 2022 14:50:27 +0100
+Subject: [PATCH] man: Fix sg_readcap -z argument in the old options
+
+---
+ doc/sg_readcap.8 | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/doc/sg_readcap.8 b/doc/sg_readcap.8
+index fa2afd3..d936ef9 100644
+--- a/doc/sg_readcap.8
++++ b/doc/sg_readcap.8
+@@ -178,7 +178,7 @@ and '\-vvv' are also accepted yielding greater verbosity.
+ \fB\-V\fR
+ outputs version string then exits.
+ .TP
+-\fB\-R\fR
++\fB\-z\fR
+ Equivalent to \fI\-\-zbc\fR in the main description.
+ .SH ENVIRONMENT VARIABLES
+ Since sg3_utils version 1.23 the environment variable SG3_UTILS_OLD_OPTS
+-- 
+2.34.1
+
