@@ -4,7 +4,7 @@
 Summary: Utilities for devices that use SCSI command sets
 Name:    sg3_utils
 Version: 1.47
-Release: 9%{?dist}
+Release: 10%{?dist}
 License: GPLv2+ and BSD
 URL:     https://sg.danny.cz/sg/sg3_utils.html
 Source0: https://sg.danny.cz/sg/p/sg3_utils-%{version}.tar.xz
@@ -30,6 +30,9 @@ Patch5:  sg3_utils-1.48-rescan-scsi-bus.sh_seq_-s.patch
 # https://bugzilla.redhat.com/show_bug.cgi?id=2073146
 # missing new line in sg_vpd output
 Patch6:  sg3_utils-1.48-sg_vpd_vendor-Fix-missing-newline-in-the-svpd_decode.patch
+# https://issues.redhat.com/browse/RHEL-29139
+# 63-scsi-sg3_symlink.rules sets up symlinks for multipath paths
+Patch7:  63-scsi-sg3_symlink.rules-DM_MULTIPATH_DEVICE_PATH-skip.patch
 
 Requires: %{name}-libs%{?_isa} = %{version}-%{release}
 BuildRequires: make
@@ -126,6 +129,9 @@ install -p -m 755 scripts/fc_wwpn_id $RPM_BUILD_ROOT%{_udevlibdir}
 
 
 %changelog
+* Tue Nov 05 2024 Tomas Bzatek <tbzatek@redhat.com> - 1.47-10
+- Skip symlink generation for multipath (RHEL-29139)
+
 * Wed Jun 15 2022 Tomas Bzatek <tbzatek@redhat.com> - 1.47-9
 - Fix missing newline in sg_vpd output (#2073146)
 

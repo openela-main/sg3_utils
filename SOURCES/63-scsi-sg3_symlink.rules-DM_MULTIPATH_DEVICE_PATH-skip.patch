@@ -1,0 +1,13 @@
+diff -up sg3_utils-1.47/scripts/58-scsi-sg3_symlink.rules.bak sg3_utils-1.47/scripts/58-scsi-sg3_symlink.rules
+--- sg3_utils-1.47/scripts/58-scsi-sg3_symlink.rules.bak	2021-10-31 02:36:51.000000000 +0100
++++ sg3_utils-1.47/scripts/58-scsi-sg3_symlink.rules	2024-11-05 13:51:48.624929865 +0100
+@@ -5,6 +5,9 @@ ACTION=="remove", GOTO="sg3_utils_symlin
+ SUBSYSTEM!="block", GOTO="sg3_utils_symlink_end"
+ ENV{UDEV_DISABLE_PERSISTENT_STORAGE_RULES_FLAG}=="1", GOTO="sg3_utils_symlink_end"
+ 
++# Skip symlink generation for multipath
++ENV{DM_MULTIPATH_DEVICE_PATH}=="1", GOTO="sg3_utils_symlink_end"
++
+ # Select which identifier to use per default
+ # 0: vpd page 0x80 identifier
+ ENV{SCSI_IDENT_SERIAL}=="?*", ENV{DEVTYPE}=="disk", SYMLINK+="disk/by-id/scsi-S$env{SCSI_VENDOR}_$env{SCSI_MODEL}_$env{SCSI_IDENT_SERIAL}"
