@@ -4,7 +4,7 @@
 Summary: Utilities for devices that use SCSI command sets
 Name:    sg3_utils
 Version: 1.48
-Release: 7%{?dist}
+Release: 7%{?dist}.1
 License: GPL-2.0-or-later AND BSD-2-Clause
 URL:     https://sg.danny.cz/sg/sg3_utils.html
 Source0: https://sg.danny.cz/sg/p/sg3_utils-%{version}.tar.xz
@@ -12,6 +12,8 @@ Source1: scsi-rescan.8
 
 # https://github.com/doug-gilbert/sg3_utils/pull/47
 Patch0: udev_rules-avoid_spurious_warning_for_non-SCSI_devices.patch
+# https://redhat.atlassian.net/browse/RHEL-118123
+Patch1: RHEL-188123-sg_inq-export-output-conformance-for-SCSI-name-string-and-ATA-fields.patch
 
 Requires: %{name}-libs%{?_isa} = %{version}-%{release}
 BuildRequires: make
@@ -128,6 +130,9 @@ install -p -m 755 scripts/fc_wwpn_id %{buildroot}%{_udevlibdir}
 
 
 %changelog
+* Thu Jun 25 2026 Paul Evans <pevans@redhat.com> - 1.48-7.1
+- sg_inq output conformance for SCSI name string and ATA fields (RHEL-188123)
+
 * Mon Nov 04 2024 Tomas Bzatek <tbzatek@redhat.com> - 1.48-7
 - udev rules: avoid spurious warning for non-SCSI devices (RHEL-40861,RHEL-54607)
 - Install missing 00-scsi-sg3_config.rules
