@@ -4,7 +4,7 @@
 Summary: Utilities for devices that use SCSI command sets
 Name:    sg3_utils
 Version: 1.47
-Release: 10%{?dist}
+Release: 10%{?dist}.1
 License: GPLv2+ and BSD
 URL:     https://sg.danny.cz/sg/sg3_utils.html
 Source0: https://sg.danny.cz/sg/p/sg3_utils-%{version}.tar.xz
@@ -33,6 +33,8 @@ Patch6:  sg3_utils-1.48-sg_vpd_vendor-Fix-missing-newline-in-the-svpd_decode.pat
 # https://issues.redhat.com/browse/RHEL-29139
 # 63-scsi-sg3_symlink.rules sets up symlinks for multipath paths
 Patch7:  63-scsi-sg3_symlink.rules-DM_MULTIPATH_DEVICE_PATH-skip.patch
+# https://redhat.atlassian.net/browse/RHEL-188130
+Patch8: RHEL-188130-sg_inq-export-output-conformance-for-SCSI-name-string-and-ATA-fields.patch
 
 Requires: %{name}-libs%{?_isa} = %{version}-%{release}
 BuildRequires: make
@@ -129,6 +131,9 @@ install -p -m 755 scripts/fc_wwpn_id $RPM_BUILD_ROOT%{_udevlibdir}
 
 
 %changelog
+* Thu Jun 25 2026 Paul Evans <pevans@redhat.com> - 1.47-10.1
+- sg_inq output conformance for SCSI name string and ATA fields (RHEL-188130)
+
 * Tue Nov 05 2024 Tomas Bzatek <tbzatek@redhat.com> - 1.47-10
 - Skip symlink generation for multipath (RHEL-29139)
 
