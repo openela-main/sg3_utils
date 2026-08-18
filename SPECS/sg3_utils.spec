@@ -3,7 +3,7 @@
 Summary: Utilities for devices that use SCSI command sets
 Name: sg3_utils
 Version: 1.44
-Release: 6%{?dist}
+Release: 6%{?dist}.1
 License: GPLv2+ and BSD
 Group: Applications/System
 Source0: http://sg.danny.cz/sg/p/sg3_utils-%{version}.tar.xz
@@ -23,6 +23,9 @@ Patch3: fc_wwpn_id-non_FC-devices.patch
 # https://bugzilla.redhat.com/show_bug.cgi?id=2078107
 # sg_ses: --page= is incorrectly overridden when --control and --data= are also used
 Patch4: sg_ses-1.45-page_control_data_args.patch
+# https://redhat.atlassian.net/browse/RHEL-188162
+Patch5: RHEL-188162-sg_inq-export-output-conformance-for-SCSI-name-string-and-ATA-fields.patch
+
 URL: http://sg.danny.cz/sg/sg3_utils.html
 Requires: %{name}-libs%{?_isa} = %{version}-%{release}
 BuildRequires: systemd
@@ -116,6 +119,9 @@ install -p -m 755 scripts/fc_wwpn_id $RPM_BUILD_ROOT/usr/lib/udev
 
 
 %changelog
+* Thu Jun 25 2026 Paul Evans <pevans@redhat.com> - 1.44-6.1
+- sg_inq output conformance for SCSI name string and ATA fields (RHEL-188162)
+
 * Wed Jun 08 2022 Tomas Bzatek <tbzatek@redhat.com> - 1.44-6
 - Fix sg_ses --page argument override when --control and --data are specified (#2078107)
 
