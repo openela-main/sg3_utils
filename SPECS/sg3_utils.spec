@@ -4,7 +4,7 @@
 Summary: Utilities for devices that use SCSI command sets
 Name:    sg3_utils
 Version: 1.48
-Release: 7%{?dist}.1
+Release: 7%{?dist}.2
 License: GPL-2.0-or-later AND BSD-2-Clause
 URL:     https://sg.danny.cz/sg/sg3_utils.html
 Source0: https://sg.danny.cz/sg/p/sg3_utils-%{version}.tar.xz
@@ -14,6 +14,11 @@ Source1: scsi-rescan.8
 Patch0: udev_rules-avoid_spurious_warning_for_non-SCSI_devices.patch
 # https://redhat.atlassian.net/browse/RHEL-118123
 Patch1: RHEL-188123-sg_inq-export-output-conformance-for-SCSI-name-string-and-ATA-fields.patch
+# https://redhat.atlassian.net/browse/RHEL-262865
+Patch2: RHEL-261865-1-rescan-scsi-bus.sh.8-add-description-and-examples.patch
+Patch3: RHEL-261865-2-doc-remove-external-links-from-man-pages-and-test-da.patch
+# https://redhat.atlassian.net/browse/RHEL-261874
+Patch4: RHEL-261874-sg_inq-avoid-including-0-bytes-in-SCSI-name-strings.patch
 
 Requires: %{name}-libs%{?_isa} = %{version}-%{release}
 BuildRequires: make
@@ -130,6 +135,10 @@ install -p -m 755 scripts/fc_wwpn_id %{buildroot}%{_udevlibdir}
 
 
 %changelog
+* Wed Sep 23 2026 Paul Evans <pevans@redhat.com> - 1.48-7.2
+- rescan-scsi-bus.sh.8 manpage links to external domain (RHEL-261865)
+- sg_inq: avoid including NULL-bytes in SCSI name strings (RHEL-261874)
+
 * Thu Jun 25 2026 Paul Evans <pevans@redhat.com> - 1.48-7.1
 - sg_inq output conformance for SCSI name string and ATA fields (RHEL-188123)
 
