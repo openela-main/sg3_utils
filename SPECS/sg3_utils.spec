@@ -4,7 +4,7 @@
 Summary: Utilities for devices that use SCSI command sets
 Name:    sg3_utils
 Version: 1.48
-Release: 7%{?dist}.2
+Release: 10%{?dist}
 License: GPL-2.0-or-later AND BSD-2-Clause
 URL:     https://sg.danny.cz/sg/sg3_utils.html
 Source0: https://sg.danny.cz/sg/p/sg3_utils-%{version}.tar.xz
@@ -12,13 +12,22 @@ Source1: scsi-rescan.8
 
 # https://github.com/doug-gilbert/sg3_utils/pull/47
 Patch0: udev_rules-avoid_spurious_warning_for_non-SCSI_devices.patch
-# https://redhat.atlassian.net/browse/RHEL-118123
-Patch1: RHEL-188123-sg_inq-export-output-conformance-for-SCSI-name-string-and-ATA-fields.patch
-# https://redhat.atlassian.net/browse/RHEL-262865
-Patch2: RHEL-261865-1-rescan-scsi-bus.sh.8-add-description-and-examples.patch
-Patch3: RHEL-261865-2-doc-remove-external-links-from-man-pages-and-test-da.patch
-# https://redhat.atlassian.net/browse/RHEL-261874
-Patch4: RHEL-261874-sg_inq-avoid-including-0-bytes-in-SCSI-name-strings.patch
+# https://redhat.atlassian.net/browse/RHEL-153277
+Patch1: RHEL-153277-rescan-scsi-bus.sh-Correctly-read-RMB-bit-on-enquiry.patch
+# https://redhat.atlassian.net/browse/RHEL-70693
+Patch2: RHEL-70693-PATCH-v2-rescan-scsi-bus.sh-Replace-which-with-build.patch
+# https://redhat.atlassian.net/browse/RHEL-125869
+Patch3: RHEL-125869-Update-sg_safte.c-to-update-short-option-of-version.patch
+# https://redhat.atlassian.net/browse/RHEL-69439
+Patch4: RHEL-69439-Update-sg_rdac.c-to-accept--help-or--h-without-erro.patch
+# https://redhat.atlassian.net/browse/RHEL-119246
+# https://redhat.aslassian.net/browse/RHEL-123748
+Patch5: RHEL-119246-1-sg_inq-fix-missing-output-fields-in--export-format.patch
+# https://redhat.atlassian.net/browse/RHEL-119246
+# https://redhat.aslassian.net/browse/RHEL-123748
+Patch6: RHEL-119246-2-sg_inq-re-add-Unit-serial-number-field.patch
+# https://redhat.aslassian.net/browse/RHEL-188083
+Patch7: RHEL-188083-sg_inq-export-output-conformance-for-SCSI-name-string-and-ATA-fields.patch
 
 Requires: %{name}-libs%{?_isa} = %{version}-%{release}
 BuildRequires: make
@@ -135,12 +144,19 @@ install -p -m 755 scripts/fc_wwpn_id %{buildroot}%{_udevlibdir}
 
 
 %changelog
-* Wed Sep 23 2026 Paul Evans <pevans@redhat.com> - 1.48-7.2
-- rescan-scsi-bus.sh.8 manpage links to external domain (RHEL-261865)
-- sg_inq: avoid including NULL-bytes in SCSI name strings (RHEL-261874)
+* Thu Jun 25 2026 Paul Evans <pevans@redhat.com> - 1.48-10
+- sg_inq output conformance for SCSI name string and ATA fields (RHEL-188083)
 
-* Thu Jun 25 2026 Paul Evans <pevans@redhat.com> - 1.48-7.1
-- sg_inq output conformance for SCSI name string and ATA fields (RHEL-188123)
+* Mon May 11 2026 Paul Evans <pevans@redhat.com> - 1.48-9
+- rescan-scsi-bus.sh: Replace 'which' with build in 'command -v' [Patch v2] (RHEL-70693)
+
+* Wed Mar 25 2026 Paul Evans <pevans@redhat.com> - 1.48-8
+- rescan-scsi-bus.sh: Correctly read RMB bit on enquiry (RHEL-153277)
+- rescan-scsi-bus.sh: Replace 'which' with build in 'command -v' (RHEL-70693)
+- sg_safte: update short option of version (RHEL-125869)
+- sg_rdac: accept --help or -h without error (RHEL-69439)
+- sg_inq: fix issing output fields in --export format (RHEL-119246, RHEL-123748)
+- sg_inq: re-add Unit serial number field (RHEL-119246, RHEL-123748)
 
 * Mon Nov 04 2024 Tomas Bzatek <tbzatek@redhat.com> - 1.48-7
 - udev rules: avoid spurious warning for non-SCSI devices (RHEL-40861,RHEL-54607)
